@@ -27,28 +27,6 @@ This project demonstrates how to build a complete CRUD-based Todo system using R
 
 ---
 
-## 📁 Project Structure
-
-```
-TodoP/
-│── todo_drf/
-│   ├── api/
-│   │   ├── models.py
-│   │   ├── serializers.py
-│   │   ├── urls.py
-│   │   ├── views.py
-│   ├── settings.py
-│   ├── urls.py
-│── templates/
-│   ├── index.html
-│── static/
-│   ├── css/
-│   ├── js/
-│── manage.py
-```
-
----
-
 ## 🔧 Tech Stack
 
 ### **Backend**
