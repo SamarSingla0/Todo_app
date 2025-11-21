@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Todo</title>
+
+    <!-- Bootstrap -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+      crossorigin="anonymous"
+    />
+
+    <!-- Google Font -->
+    <link
+      href="https://fonts.googleapis.com/css?family=Montserrat&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* ============================
+   Global (Dark Modern UI)
+============================ */
+      body {
+        background: #0d1117;
+        font-family: "Montserrat", sans-serif;
+        color: #e6edf3;
+        margin: 0;
+      }
+
+      /* ============================
+   Main Container
+============================ */
+      #task-container {
+        width: 92%;
+        max-width: 650px;
+        margin: 70px auto;
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 0 25px rgba(0, 0, 0, 0.55);
+      }
+
+      /* ============================
+   Form Header Area
+============================ */
+      #form-wrapper {
+        position: sticky;
+        top: 0;
+        background: #161b22;
+        padding: 25px;
+        border-bottom: 1px solid #30363d;
+        z-index: 50;
+      }
+
+      /* Fix for Chat Area / Task List spacing */
+      #list-wrapper {
+        padding: 20px;
+      }
+
+      /* ============================
+   Inputs
+============================ */
+      input[type="text"],
+      textarea {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        border: 1px solid #30363d;
+        background: #0d1117;
+        color: #e6edf3;
+        transition: 0.3s;
+      }
+
+      input:focus,
+      textarea:focus {
+        border-color: #58a6ff;
+        outline: none;
+        box-shadow: 0 0 6px rgba(88, 166, 255, 0.3);
+      }
+
+      /* ============================
+   ADD Button Fix
+============================ */
+      #submit {
+        width: 100%;
+        padding: 12px;
+        margin-top: 5px;
+
+        background: #238636;
+        border: none;
+        border-radius: 8px;
+
+        color: white;
+        font-weight: 600;
+        font-size: 15px;
+        letter-spacing: 0.5px;
+
+        transition: background 0.25s ease, transform 0.1s ease;
+      }
+
+      #submit:hover {
+        background: #2ea043;
+        cursor: pointer;
+        transform: translateY(-1px);
+      }
+
+      #submit:active {
+        transform: scale(0.98);
+      }
+
+      /* ============================
+   Task / Chat Area
+============================ */
+      .task-wrapper {
+        padding: 16px 20px;
+        margin-bottom: 12px;
+
+        background: #1c222a;
+        border: 1px solid #30363d;
+        border-radius: 10px;
+
+        transition: 0.3s ease;
+      }
+
+      .task-wrapper:hover {
+        background: #222831;
+      }
+
+      /* Fix alignment issues */
+      .flex-wrapper {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      /* ============================
+   Centered Table (Cleaner)
+============================ */
+      table {
+        width: 88%;
+        margin: 25px auto;
+        border-collapse: collapse;
+        background: #161b22;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      table th,
+      table td {
+        padding: 14px;
+        border-bottom: 1px solid #30363d;
+      }
+
+      table th {
+        background: #0d1117;
+        font-weight: bold;
+      }
+
+      table tr:hover {
+        background: #1c222a;
+      }
+
+      /* ============================
+   Scrollbar
+============================ */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #30363d;
+        border-radius: 10px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div id="task-container">
+        <!-- Form -->
+        <div id="form-wrapper">
+          <form id="form">
+            <div class="flex-wrapper">
+              <input
+                id="title"
+                class="form-control"
+                type="text"
+                placeholder="Add task"
+                required
+                style="flex: 6"
+              />
+
+              <button id="submit" class="btn btn-success" style="flex: 1">
+                Add
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Task List -->
+        <div id="list-wrapper"></div>
+      </div>
+    </div>
+
+    <script>
+      // ============================
+      // Get CSRF Token
+      // ============================
+      function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie) {
+          const cookies = document.cookie.split(";");
+          for (let cookie of cookies) {
+            cookie = cookie.trim();
+            if (cookie.startsWith(name + "=")) {
+              cookieValue = decodeURIComponent(
+                cookie.substring(name.length + 1)
+              );
+              break;
+            }
+          }
+        }
+        return cookieValue;
+      }
+
+      const csrftoken = getCookie("csrftoken");
+
+      // ============================
+      // Globals
+      // ============================
+      let activeItem = null;
+      let listSnapshot = [];
+
+      // ============================
+      // Initialize
+      // ============================
+      document.addEventListener("DOMContentLoaded", () => {
+        buildList();
+      });
+
+      // ============================
+      // Fetch & Display Tasks
+      // ============================
+      async function buildList() {
+        const wrapper = document.getElementById("list-wrapper");
+        wrapper.innerHTML = ""; // Clear list each time
+
+        const url = "http://127.0.0.1:8000/api/task-list/";
+
+        const response = await fetch(url);
+        const list = await response.json();
+
+        list.forEach((item, index) => {
+          const titleHTML = item.completed
+            ? `<strike class="title">${item.title}</strike>`
+            : `<span class="title">${item.title}</span>`;
+
+          const html = `
+                <div id="task-${item.id}" class="task-wrapper flex-wrapper">
+                    <div style="flex:7">${titleHTML}</div>
+                    <div style="flex:1">
+                        <button class="btn btn-sm btn-outline-info edit-btn">Edit</button>
+                    </div>
+                    <div style="flex:1">
+                        <button class="btn btn-sm btn-outline-dark delete-btn">Delete</button>
+                    </div>
+                </div>
+            `;
+
+          wrapper.innerHTML += html;
+        });
+
+        addEventListeners(list);
+        listSnapshot = list;
+      }
+
+      // ============================
+      // Attach Event Listeners
+      // ============================
+      function addEventListeners(list) {
+        const editButtons = document.getElementsByClassName("edit-btn");
+        const deleteButtons = document.getElementsByClassName("delete-btn");
+        const titles = document.getElementsByClassName("title");
+
+        list.forEach((item, index) => {
+          editButtons[index].addEventListener("click", () => editItem(item));
+          deleteButtons[index].addEventListener("click", () =>
+            deleteItem(item)
+          );
+          titles[index].addEventListener("click", () => toggleComplete(item));
+        });
+      }
+
+      // ============================
+      // Create Task
+      // ============================
+      var form = document.getElementById("form-wrapper");
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        console.log("Form submitted");
+        var url = "http://127.0.0.1:8000/api/task-create/";
+        if (activeItem != null) {
+          var url = `http://127.0.0.1:8000/api/task-update/${activeItem.id}/`;
+          activeItem = null;
+        }
+
+        var title = document.getElementById("title").value;
+        fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-type": "application/json",
+            "X-CSRFToken": csrftoken,
+          },
+          body: JSON.stringify({ title: title }),
+        }).then(function (response) {
+          buildList();
+          document.getElementById("form").reset();
+        });
+      });
+
+      // ============================
+      // Edit Task
+      // ============================
+      function editItem(item) {
+        activeItem = item;
+        document.getElementById("title").value = item.title;
+      }
+
+      // ============================
+      // Delete Task
+      // ============================
+      async function deleteItem(item) {
+        await fetch(`http://127.0.0.1:8000/api/task-delete/${item.id}/`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrftoken,
+          },
+        });
+
+        buildList();
+      }
+
+      // ============================
+      // Mark Completed / Undo
+      // ============================
+      async function toggleComplete(item) {
+        item.completed = !item.completed;
+
+        await fetch(`http://127.0.0.1:8000/api/task-update/${item.id}/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrftoken,
+          },
+          body: JSON.stringify({
+            title: item.title,
+            completed: item.completed,
+          }),
+        });
+
+        buildList();
+      }
+    </script>
+  </body>
+</html>
